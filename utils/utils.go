@@ -6,12 +6,23 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/url"
 	"os"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
+	"unicode"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/princinho/sahobackend/models"
+	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/text/unicode/norm"
 
 	"mime/multipart"
 	"path/filepath"
-	"strings"
 
 	"cloud.google.com/go/storage"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -162,4 +173,277 @@ func IsDuplicateKey(err error) bool {
 	// Fallback
 	msg := err.Error()
 	return strings.Contains(msg, "E11000 duplicate key error")
+}
+
+func GenerateSlug(name string) string {
+	// Normalize accents
+	t := norm.NFD.String(name)
+	var b strings.Builder
+	for _, r := range t {
+		if unicode.Is(unicode.Mn, r) {
+			continue // remove accent marks
+		}
+		b.WriteRune(r)
+	}
+
+	s := strings.ToLower(b.String())
+
+	// Replace non-alphanumeric with hyphen
+	reg := regexp.MustCompile(`[^a-z0-9]+`)
+	s = reg.ReplaceAllString(s, "-")
+
+	// Trim hyphens
+	s = strings.Trim(s, "-")
+
+	return s
+}
+
+func IntersectStrings(a, b []string) []string {
+	set := make(map[string]struct{}, len(b))
+	for _, x := range b {
+		set[x] = struct{}{}
+	}
+	out := make([]string, 0)
+	for _, x := range a {
+		if _, ok := set[x]; ok {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+func ObjectNameFromGCSPublicURL(bucket string, raw string) (string, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("invalid url: %w", err)
+	}
+
+	host := strings.ToLower(u.Host)
+	path := strings.TrimPrefix(u.Path, "/")
+
+	// style 1: storage.googleapis.com/<bucket>/<object>
+	if host == "storage.googleapis.com" {
+		prefix := bucket + "/"
+		if !strings.HasPrefix(path, prefix) {
+			return "", fmt.Errorf("url bucket mismatch")
+		}
+		return strings.TrimPrefix(path, prefix), nil
+	}
+
+	// style 2: <bucket>.storage.googleapis.com/<object>
+	if host == strings.ToLower(bucket)+".storage.googleapis.com" {
+		if path == "" {
+			return "", fmt.Errorf("missing object path")
+		}
+		return path, nil
+	}
+
+	return "", fmt.Errorf("not a gcs public url")
+}
+
+func DeleteGCSObjects(ctx context.Context, client *storage.Client, bucket string, objectNames []string) error {
+	var firstErr error
+
+	for _, obj := range objectNames {
+		if obj == "" {
+			continue
+		}
+		err := client.Bucket(bucket).Object(obj).Delete(ctx)
+		if err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("delete %s: %w", obj, err)
+		}
+	}
+
+	return firstErr
+}
+
+func UploadQuotePDFToGCS(
+	ctx context.Context,
+	client *storage.Client,
+	bucketName string,
+	quoteID string,
+	fileHeader *multipart.FileHeader,
+) (*models.QuoteAttachment, error) {
+
+	// Only allow PDF
+	if !strings.HasSuffix(strings.ToLower(fileHeader.Filename), ".pdf") {
+		return nil, fmt.Errorf("only PDF files are allowed")
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	// Generate unique object name
+	timestamp := time.Now().UTC().Unix()
+	random := uuid.New().String()
+
+	objectName := fmt.Sprintf(
+		"quotes/%s/%d-%s.pdf",
+		quoteID,
+		timestamp,
+		random,
+	)
+
+	bucket := client.Bucket(bucketName)
+	obj := bucket.Object(objectName)
+
+	writer := obj.NewWriter(ctx)
+	writer.ContentType = "application/pdf"
+	writer.CacheControl = "no-cache"
+
+	if _, err := io.Copy(writer, file); err != nil {
+		_ = writer.Close()
+		return nil, err
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+
+	publicURL := fmt.Sprintf(
+		"https://storage.googleapis.com/%s/%s",
+		bucketName,
+		objectName,
+	)
+
+	return &models.QuoteAttachment{
+		PublicURL:  publicURL,
+		ObjectName: objectName,
+		MimeType:   "application/pdf",
+		SizeBytes:  fileHeader.Size,
+	}, nil
+}
+
+func MergeImageUrlsArrays(
+	oldUrls []string,
+	toRemove []string,
+	toAdd []string,
+) []string {
+
+	// Step 1: build a set of urls to remove
+	removeSet := make(map[string]struct{}, len(toRemove))
+	for _, u := range toRemove {
+		removeSet[u] = struct{}{}
+	}
+
+	// Step 2: keep old urls that are NOT removed
+	final := make([]string, 0, len(oldUrls)+len(toAdd))
+	exists := make(map[string]struct{}) // prevent duplicates
+
+	for _, u := range oldUrls {
+		if _, shouldRemove := removeSet[u]; !shouldRemove {
+			final = append(final, u)
+			exists[u] = struct{}{}
+		}
+	}
+
+	// Step 3: append new urls (avoid duplicates)
+	for _, u := range toAdd {
+		if _, already := exists[u]; !already {
+			final = append(final, u)
+			exists[u] = struct{}{}
+		}
+	}
+
+	return final
+}
+
+func ParseBoolQuery(value string) (*bool, error) {
+	if value == "" {
+		return nil, nil // not provided
+	}
+
+	b, err := strconv.ParseBool(value)
+	if err != nil {
+		return nil, err
+	}
+	return &b, nil
+}
+
+func ParseIntDefault(v string, def int) int {
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return def
+	}
+	return n
+}
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
+}
+
+func CheckPassword(hash string, password string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+}
+
+type Claims struct {
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
+	Role   string `json:"role"`
+	jwt.RegisteredClaims
+}
+
+func GenerateAccessToken(userID, email, role string, accessTTL time.Duration) (string, error) {
+	claims := Claims{
+		UserID: userID,
+		Email:  email,
+		Role:   role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(accessTTL)),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+}
+
+func GenerateRefreshToken(userID string) (string, error) {
+	claims := Claims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(os.Getenv("JWT_REFRESH_SECRET")))
+}
+
+func ValidateToken(tokenStr string, secret string) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (interface{}, error) {
+		return []byte(secret), nil
+	})
+	if err != nil || !token.Valid {
+		return nil, err
+	}
+	return token.Claims.(*Claims), nil
+}
+func ClearRefreshCookie(c *gin.Context) {
+	secure := os.Getenv("COOKIE_SECURE") == "true"
+	domain := os.Getenv("COOKIE_DOMAIN")
+	path := "/auth"
+
+	c.SetCookie("refreshToken", "", -1, path, domain, secure, true)
+}
+func AccessTTL() time.Duration {
+	minStr := os.Getenv("ACCESS_TOKEN_TTL_MINUTES")
+	min, _ := strconv.Atoi(minStr)
+	if min <= 0 {
+		min = 15
+	}
+	return time.Duration(min) * time.Minute
+}
+
+func RefreshTTL() time.Duration {
+	dStr := os.Getenv("REFRESH_TOKEN_TTL_DAYS")
+	days, _ := strconv.Atoi(dStr)
+	if days <= 0 {
+		days = 14
+	}
+	return time.Duration(days) * 24 * time.Hour
 }
