@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -15,7 +16,9 @@ var dbClient *mongo.Client
 
 func Connect() *mongo.Client {
 	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
-	err := godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment variables")
+	}
 	uri := os.Getenv("MONGODB_URI")
 	opts := options.Client().ApplyURI(uri).SetServerAPIOptions(serverAPI)
 	client, err := mongo.Connect(opts)

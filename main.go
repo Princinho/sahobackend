@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"github.com/princinho/sahobackend/controllers"
 	"github.com/princinho/sahobackend/database"
 	"github.com/princinho/sahobackend/middleware"
@@ -15,6 +16,10 @@ import (
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("Error loading .env file")
+	}
 	//seeding admin user
 	ctx := context.Background()
 	usersCol := database.OpenCollection("users")
