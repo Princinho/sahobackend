@@ -7,7 +7,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -143,12 +142,7 @@ func AddProduct() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		collection := database.OpenCollection("products")
 
-		GCSBucket := os.Getenv("GCS_BUCKET")
-		wd, err := os.Getwd()
-		if err != nil {
-			c.JSON(500, gin.H{"error": "Failed to get working directory"})
-		}
-		GCSClient, err := utils.NewGCSClient(c.Request.Context(), filepath.Join(wd, "/gen-lang-client-0546647427-9649ea6bf52b.json"))
+		GCSClient, GSBucket, err := utils.NewGCSClient(c)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed to create GCS client"})
 		}
@@ -174,7 +168,7 @@ func AddProduct() gin.HandlerFunc {
 		imageUrls, err := utils.UploadImagesToGCSAndGetPublicURLs(
 			c.Request.Context(),
 			GCSClient,
-			GCSBucket,
+			GSBucket,
 			dto.Slug,
 			files,
 		)
@@ -232,12 +226,7 @@ func UpdateProduct() gin.HandlerFunc {
 			return
 		}
 		collection := database.OpenCollection("products")
-		GCSBucket := os.Getenv("GCS_BUCKET")
-		wd, err := os.Getwd()
-		if err != nil {
-			c.JSON(500, gin.H{"error": "Failed to get working directory"})
-		}
-		GCSClient, err := utils.NewGCSClient(c.Request.Context(), filepath.Join(wd, "/gen-lang-client-0546647427-9649ea6bf52b.json"))
+		GCSClient, bucket, err := utils.NewGCSClient(c)
 
 		dataStr := c.PostForm("data")
 		if dataStr == "" {
@@ -286,7 +275,7 @@ func UpdateProduct() gin.HandlerFunc {
 			urls, err := utils.UploadImagesToGCSAndGetPublicURLs(
 				c.Request.Context(),
 				GCSClient,
-				GCSBucket,
+				bucket,
 				product.Slug,
 				newFiles,
 			)
@@ -298,7 +287,7 @@ func UpdateProduct() gin.HandlerFunc {
 		}
 
 		for _, imageUrl := range imageUrls {
-			objName, _ := utils.ObjectNameFromGCSPublicURL(GCSBucket, imageUrl)
+			objName, _ := utils.ObjectNameFromGCSPublicURL(bucket, imageUrl)
 			newObjectNames = append(newObjectNames, objName)
 		}
 		log.Println("Images Uploading Ok")
@@ -362,7 +351,7 @@ func UpdateProduct() gin.HandlerFunc {
 		if err != nil {
 			// 5) Delete new images from GCS
 			if len(newObjectNames) > 0 {
-				_ = utils.DeleteGCSObjects(ctx, GCSClient, GCSBucket, newObjectNames)
+				_ = utils.DeleteGCSObjects(ctx, GCSClient, bucket, newObjectNames)
 			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "db update failed", "details": err.Error()})
 			return
@@ -373,12 +362,12 @@ func UpdateProduct() gin.HandlerFunc {
 		if len(imagesToDelete) > 0 {
 			objectNames := make([]string, 0, len(imagesToDelete))
 			for _, imageUrl := range imagesToDelete {
-				obj, err := utils.ObjectNameFromGCSPublicURL(GCSBucket, imageUrl)
+				obj, err := utils.ObjectNameFromGCSPublicURL(bucket, imageUrl)
 				if err == nil {
 					objectNames = append(objectNames, obj)
 				}
 			}
-			_ = utils.DeleteGCSObjects(ctx, GCSClient, GCSBucket, objectNames)
+			_ = utils.DeleteGCSObjects(ctx, GCSClient, bucket, objectNames)
 		}
 
 		log.Println("Deleting images Ok")

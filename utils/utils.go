@@ -78,9 +78,23 @@ func UploadFile(w io.Writer, bucket, object string) error {
 	return nil
 }
 
-func NewGCSClient(ctx context.Context, serviceKeyPath string) (*storage.Client, error) {
-	return storage.NewClient(ctx, option.WithAuthCredentialsFile(option.ServiceAccount, serviceKeyPath))
+//	func NewGCSClient(ctx context.Context, serviceKeyPath string) (*storage.Client, error) {
+//		return storage.NewClient(ctx, option.WithAuthCredentialsFile(option.ServiceAccount, serviceKeyPath))
+//	}
+func NewGCSClient(c *gin.Context) (*storage.Client, string, error) {
+	GCSBucket := os.Getenv("GCS_BUCKET")
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, "", err
+	}
+	client, err := storage.NewClient(c, option.WithAuthCredentialsFile(option.ServiceAccount, filepath.Join(wd, "/gen-lang-client-0546647427-9649ea6bf52b.json")))
+
+	if err != nil {
+		return nil, "", err
+	}
+	return client, GCSBucket, err
 }
+
 func UploadImagesToGCSAndGetPublicURLs(
 	ctx context.Context,
 	gcs *storage.Client,

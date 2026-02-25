@@ -53,7 +53,6 @@ type QuoteRequest struct {
 	Country string `bson:"country,omitempty" json:"country,omitempty"`
 	City    string `bson:"city,omitempty" json:"city,omitempty"`
 	Address string `bson:"address,omitempty" json:"address,omitempty"`
-	Zip     string `bson:"zip,omitempty" json:"zip,omitempty"`
 
 	Message string             `bson:"message,omitempty" json:"message,omitempty"`
 	Items   []QuoteRequestItem `bson:"items" json:"items"`

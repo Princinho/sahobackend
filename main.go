@@ -38,23 +38,27 @@ func main() {
 		})
 	})
 
-	r.GET("/auth/login", controllers.Login())
-	r.GET("/auth/refresh", controllers.Refresh())
+	r.POST("/auth/login", controllers.Login())
+	r.POST("/auth/refresh", controllers.Refresh())
+
 	r.GET("/products", controllers.GetProducts())
 	r.GET("/categories", controllers.GetCategories())
+	r.GET("/categories/:id", controllers.GetCategory())
+	r.GET("/categories/slug/:slug", controllers.GetCategory())
+	r.POST("/quote-requests", controllers.CreateQuoteRequest())
 
 	admin := r.Group("/admin")
 	admin.Use(middleware.AuthMiddleware())
 	{
 		admin.POST("/products/add", controllers.AddProduct())
 		admin.PATCH("/products/update/:id", controllers.UpdateProduct())
-		admin.POST("/categories/add", controllers.AddCategory())
-		admin.PATCH("/categories/update/:id", controllers.UpdateCategory())
-		admin.DELETE("/categories/delete/:id", controllers.DeleteCategory())
-
-		admin.GET("/quote-requests/:id/notes", controllers.AdminGetQuoteNotes())
-		admin.POST("/quote-requests/:id/notes", controllers.AdminAddQuoteNote())
-		admin.POST("/quote-requests/:id/notes/with-quote", controllers.AdminAddQuoteNoteWithPDF())
+		admin.POST("/categories", controllers.AddCategory())
+		admin.PATCH("/categories/:id", controllers.UpdateCategory())
+		admin.DELETE("/categories/:id", controllers.DeleteCategory())
+		admin.GET("/quote-requests", controllers.GetQuoteRequests())
+		admin.GET("/quote-requests/:id", controllers.GetQuoteRequest())
+		admin.PATCH("/quote-requests/:id/status", controllers.UpdateQuoteStatus())
+		admin.POST("/quote-requests/:id/notes", controllers.AddQuoteNote())
 	}
 	// Start server on port 8080 (default)
 	// Server will listen on 0.0.0.0:8080 (localhost:8080 on Windows)
