@@ -40,7 +40,7 @@ func main() {
 			allowedOrigins[origin] = true
 		}
 	}
-
+	log.Printf("Allowed origins: %v", allowedOrigins)
 	r.Use(cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
 			result := allowedOrigins[origin]
