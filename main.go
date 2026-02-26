@@ -30,8 +30,11 @@ func main() {
 	}
 
 	r := gin.New()
+
+	origins := os.Getenv("ALLOWED_ORIGINS")
+	log.Printf("Env config origins list: %q", origins)
 	allowedOrigins := map[string]bool{}
-	for _, origin := range strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",") {
+	for _, origin := range strings.Split(origins, ",") {
 		origin = strings.TrimSpace(origin)
 		if origin != "" {
 			allowedOrigins[origin] = true
