@@ -29,7 +29,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	r := gin.Default()
+	r := gin.New()
 	allowedOrigins := map[string]bool{}
 	for _, origin := range strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",") {
 		origin = strings.TrimSpace(origin)
@@ -40,6 +40,8 @@ func main() {
 
 	r.Use(cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
+			result := allowedOrigins[origin]
+			log.Printf("CORS check — origin: %q, allowed: %v", origin, result)
 			return allowedOrigins[origin]
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -48,6 +50,8 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+	r.Use(gin.Logger())
+	r.Use(gin.Recovery())
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
