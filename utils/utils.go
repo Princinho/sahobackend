@@ -605,8 +605,8 @@ func (v *FileValidator) ValidateFile(fileHeader *multipart.FileHeader) (string, 
 }
 
 func GetDefaultQueryLimits() (int, int) {
-	maxLimitStr := os.Getenv("QUERY_MAX_LIMIT")
-	defaultLimitStr := os.Getenv("QUERY_MAX_LIMIT")
+	maxLimitStr := os.Getenv("READ_QUERY_MAX_LIMIT")
+	defaultLimitStr := os.Getenv("DEFAULT_READ_QUERY_LIMIT")
 	maxLimit, err := strconv.Atoi(maxLimitStr)
 	if err != nil {
 		// handle error or fall back to a default
