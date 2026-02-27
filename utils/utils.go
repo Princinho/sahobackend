@@ -85,7 +85,7 @@ func UploadFile(w io.Writer, bucket, object string) error {
 //	func NewGCSClient(ctx context.Context, serviceKeyPath string) (*storage.Client, error) {
 //		return storage.NewClient(ctx, option.WithAuthCredentialsFile(option.ServiceAccount, serviceKeyPath))
 //	}
-func NewGCSClient(c *gin.Context) (*storage.Client, string, error) {
+func NewGCSClient1(c *gin.Context) (*storage.Client, string, error) {
 	GCSBucket := os.Getenv("GCS_BUCKET")
 	credentialsPath := os.Getenv("CREDENTIALS_FILE_LOCATION")
 	wd, err := os.Getwd()
@@ -100,7 +100,7 @@ func NewGCSClient(c *gin.Context) (*storage.Client, string, error) {
 	return client, GCSBucket, err
 }
 
-func UploadImagesToGCSAndGetPublicURLs(
+func UploadImagesToGCSAndGetPublicURLs1(
 	ctx context.Context,
 	gcs *storage.Client,
 	bucketName string,
@@ -231,7 +231,7 @@ func IntersectStrings(a, b []string) []string {
 	return out
 }
 
-func ObjectNameFromGCSPublicURL(bucket string, raw string) (string, error) {
+func ObjectNameFromGCSPublicURL1(bucket string, raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return "", fmt.Errorf("invalid url: %w", err)
@@ -260,7 +260,7 @@ func ObjectNameFromGCSPublicURL(bucket string, raw string) (string, error) {
 	return "", fmt.Errorf("not a gcs public url")
 }
 
-func DeleteGCSObjects(ctx context.Context, client *storage.Client, bucket string, objectNames []string) error {
+func DeleteGCSObjects1(ctx context.Context, client *storage.Client, bucket string, objectNames []string) error {
 	var firstErr error
 
 	for _, obj := range objectNames {
@@ -276,7 +276,7 @@ func DeleteGCSObjects(ctx context.Context, client *storage.Client, bucket string
 	return firstErr
 }
 
-func UploadQuotePDFToGCS(
+func UploadQuotePDFToGCS1(
 	ctx context.Context,
 	client *storage.Client,
 	bucketName string,
@@ -467,7 +467,7 @@ func RefreshTTL() time.Duration {
 	return time.Duration(days) * 24 * time.Hour
 }
 
-func UploadProductRequestFileToGCS(
+func UploadProductRequestFileToGCS1(
 	ctx context.Context,
 	client *storage.Client,
 	bucketName string,

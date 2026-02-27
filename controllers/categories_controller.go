@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"cloud.google.com/go/storage"
 	"github.com/gin-gonic/gin"
 	"github.com/princinho/sahobackend/database"
 	"github.com/princinho/sahobackend/dto"
@@ -55,11 +54,11 @@ func AddCategory() gin.HandlerFunc {
 		// 2) Upload image (optional)
 		var imageUrl string
 		if file, err := c.FormFile("image"); err == nil && file != nil {
-			gcsClient, gcsBucket, gsError := utils.NewGCSClient(c)
+			gcsClient, gcsBucket, gsError := utils.NewCloudClient(c)
 			if gsError != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to connect GS Client", "details": gsError.Error()})
 			}
-			urls, err := utils.UploadImagesToGCSAndGetPublicURLs(
+			urls, err := utils.UploadImagesToCloudAndGetPublicURLs(
 				ctx, gcsClient, gcsBucket, body.Slug, []*multipart.FileHeader{file},
 			)
 			if err != nil {
@@ -273,15 +272,15 @@ func UpdateCategory() gin.HandlerFunc {
 		newFile, fileErr := c.FormFile("image")
 		hasNewFile := fileErr == nil && newFile != nil
 
-		var gcsClient *storage.Client
+		var gcsClient *utils.R2Client
 		var gcsBucket string
 
 		if hasNewFile {
-			gcsClient, gcsBucket, err = utils.NewGCSClient(c)
+			gcsClient, gcsBucket, err = utils.NewCloudClient(c)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to open GS Client", "details": err.Error()})
 			}
-			urls, err := utils.UploadImagesToGCSAndGetPublicURLs(
+			urls, err := utils.UploadImagesToCloudAndGetPublicURLs(
 				ctx, gcsClient, gcsBucket, uploadSlug, []*multipart.FileHeader{newFile},
 			)
 			if err != nil {
@@ -301,8 +300,8 @@ func UpdateCategory() gin.HandlerFunc {
 		if err != nil {
 			// Roll back: delete newly uploaded image (if any)
 			if newImageUrl != "" && gcsClient != nil {
-				if objName, e := utils.ObjectNameFromGCSPublicURL(gcsBucket, newImageUrl); e == nil {
-					_ = utils.DeleteGCSObjects(ctx, gcsClient, gcsBucket, []string{objName})
+				if objName, e := utils.ObjectNameFromCloudPublicURL(gcsBucket, newImageUrl); e == nil {
+					_ = utils.DeleteCloudObjects(ctx, gcsClient, gcsBucket, []string{objName})
 				}
 			}
 			if utils.IsDuplicateKey(err) {
@@ -319,8 +318,8 @@ func UpdateCategory() gin.HandlerFunc {
 
 		// 5) DB OK → delete old image from GCS if replaced or removed
 		if (hasNewFile) && existing.ImageUrl != "" && gcsClient != nil {
-			if objName, e := utils.ObjectNameFromGCSPublicURL(gcsBucket, existing.ImageUrl); e == nil {
-				_ = utils.DeleteGCSObjects(ctx, gcsClient, gcsBucket, []string{objName})
+			if objName, e := utils.ObjectNameFromCloudPublicURL(gcsBucket, existing.ImageUrl); e == nil {
+				_ = utils.DeleteCloudObjects(ctx, gcsClient, gcsBucket, []string{objName})
 			}
 		}
 
@@ -360,12 +359,12 @@ func DeleteCategory() gin.HandlerFunc {
 
 		// Clean up GCS image
 		if existing.ImageUrl != "" {
-			gcsClient, gcsBucket, err := utils.NewGCSClient(c)
+			gcsClient, gcsBucket, err := utils.NewCloudClient(c)
 			if err != nil {
 				c.JSON(http.StatusNotFound, gin.H{"error": "failed to open GS Client", "details": err.Error()})
 			}
-			if objName, e := utils.ObjectNameFromGCSPublicURL(gcsBucket, existing.ImageUrl); e == nil {
-				_ = utils.DeleteGCSObjects(ctx, gcsClient, gcsBucket, []string{objName})
+			if objName, e := utils.ObjectNameFromCloudPublicURL(gcsBucket, existing.ImageUrl); e == nil {
+				_ = utils.DeleteCloudObjects(ctx, gcsClient, gcsBucket, []string{objName})
 			}
 
 		}

@@ -335,13 +335,13 @@ func AddQuoteNote() gin.HandlerFunc {
 		// Optional PDF attachment
 		pdfFile, pdfErr := c.FormFile("pdf")
 		if pdfErr == nil && pdfFile != nil {
-			gcsClient, GCSBucket, err := utils.NewGCSClient(c)
+			gcsClient, GCSBucket, err := utils.NewCloudClient(c)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create GCS client"})
 				return
 			}
 
-			attachment, err := utils.UploadQuotePDFToGCS(ctx, gcsClient, GCSBucket, quoteID.Hex(), pdfFile)
+			attachment, err := utils.UploadQuotePDFToCloud(ctx, gcsClient, GCSBucket, quoteID.Hex(), pdfFile)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return

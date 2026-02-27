@@ -80,7 +80,7 @@ func CreateProductRequest(ImageOrPdfValidator *utils.FileValidator) gin.HandlerF
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
-			gcsClient, bucket, err := utils.NewGCSClient(c)
+			gcsClient, bucket, err := utils.NewCloudClient(c)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create GCS client"})
 				return
@@ -316,7 +316,7 @@ func AddProductRequestNote() gin.HandlerFunc {
 		// optional attachment
 		fh, ferr := c.FormFile("file")
 		if ferr == nil && fh != nil {
-			gcsClient, bucket, err := utils.NewGCSClient(c)
+			gcsClient, bucket, err := utils.NewCloudClient(c)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create GCS client"})
 				return

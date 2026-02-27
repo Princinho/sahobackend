@@ -141,7 +141,7 @@ func AddProduct() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		collection := database.OpenCollection("products")
 
-		GCSClient, GSBucket, err := utils.NewGCSClient(c)
+		GCSClient, GSBucket, err := utils.NewCloudClient(c)
 		if err != nil {
 			c.JSON(500, gin.H{"error": "Failed to create GCS client"})
 		}
@@ -164,7 +164,7 @@ func AddProduct() gin.HandlerFunc {
 		}
 		files := form.File["images"]
 
-		imageUrls, err := utils.UploadImagesToGCSAndGetPublicURLs(
+		imageUrls, err := utils.UploadImagesToCloudAndGetPublicURLs(
 			c.Request.Context(),
 			GCSClient,
 			GSBucket,
@@ -225,7 +225,7 @@ func UpdateProduct() gin.HandlerFunc {
 			return
 		}
 		collection := database.OpenCollection("products")
-		GCSClient, bucket, err := utils.NewGCSClient(c)
+		GCSClient, bucket, err := utils.NewCloudClient(c)
 
 		dataStr := c.PostForm("data")
 		if dataStr == "" {
@@ -271,7 +271,7 @@ func UpdateProduct() gin.HandlerFunc {
 		newObjectNames := []string{} // for cleanup if DB update fails
 		var imageUrls []string
 		if len(newFiles) > 0 {
-			urls, err := utils.UploadImagesToGCSAndGetPublicURLs(
+			urls, err := utils.UploadImagesToCloudAndGetPublicURLs(
 				c.Request.Context(),
 				GCSClient,
 				bucket,
@@ -286,7 +286,7 @@ func UpdateProduct() gin.HandlerFunc {
 		}
 
 		for _, imageUrl := range imageUrls {
-			objName, _ := utils.ObjectNameFromGCSPublicURL(bucket, imageUrl)
+			objName, _ := utils.ObjectNameFromCloudPublicURL(bucket, imageUrl)
 			newObjectNames = append(newObjectNames, objName)
 		}
 		log.Println("Images Uploading Ok")
@@ -350,7 +350,7 @@ func UpdateProduct() gin.HandlerFunc {
 		if err != nil {
 			// 5) Delete new images from GCS
 			if len(newObjectNames) > 0 {
-				_ = utils.DeleteGCSObjects(ctx, GCSClient, bucket, newObjectNames)
+				_ = utils.DeleteCloudObjects(ctx, GCSClient, bucket, newObjectNames)
 			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "db update failed", "details": err.Error()})
 			return
@@ -361,12 +361,12 @@ func UpdateProduct() gin.HandlerFunc {
 		if len(imagesToDelete) > 0 {
 			objectNames := make([]string, 0, len(imagesToDelete))
 			for _, imageUrl := range imagesToDelete {
-				obj, err := utils.ObjectNameFromGCSPublicURL(bucket, imageUrl)
+				obj, err := utils.ObjectNameFromCloudPublicURL(bucket, imageUrl)
 				if err == nil {
 					objectNames = append(objectNames, obj)
 				}
 			}
-			_ = utils.DeleteGCSObjects(ctx, GCSClient, bucket, objectNames)
+			_ = utils.DeleteCloudObjects(ctx, GCSClient, bucket, objectNames)
 		}
 
 		log.Println("Deleting images Ok")
