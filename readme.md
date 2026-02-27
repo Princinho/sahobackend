@@ -12,10 +12,13 @@
 - [Produits](#produits)
 - [Catégories](#catégories)
 - [Demandes de devis](#demandes-de-devis)
+- [Demandes de produit sur mesure](#demandes-de-produit-sur-mesure)
 - [Routes admin (protégées)](#routes-admin-protégées)
   - [Produits (admin)](#produits-admin)
   - [Catégories (admin)](#catégories-admin)
   - [Demandes de devis (admin)](#demandes-de-devis-admin)
+  - [Demandes de produit sur mesure (admin)](#demandes-de-produit-sur-mesure-admin)
+  - [Utilisateurs (admin)](#utilisateurs-admin)
 - [Codes d'erreur](#codes-derreur)
 
 ---
@@ -292,6 +295,66 @@ Permet à un visiteur non connecté de soumettre une demande de devis avec un ou
 ```
 
 **Erreurs** : `400` Données invalides ou `productId` inexistant · `500` Erreur serveur
+
+---
+
+## Demandes de produit sur mesure
+
+### `POST /product-requests`
+
+Permet à un visiteur non connecté de soumettre une demande de fabrication d'un produit sur mesure. Requête **multipart/form-data**.
+
+> ⚠️ Ne pas forcer le `Content-Type` — laisser Axios/fetch le déduire automatiquement depuis le `FormData`.
+
+**Champs multipart**
+
+| Champ | Type | Requis | Description |
+|---|---|---|---|
+| `data` | string (JSON) | ✅ | Données de la demande sérialisées en JSON |
+| `image` | File | ❌ | Image ou PDF de référence (jpg, png, webp, pdf) |
+
+**Champ `data` (JSON)**
+
+| Champ | Type | Requis | Description |
+|---|---|---|---|
+| `fullName` | string | ✅ | Nom complet |
+| `email` | string | ✅ | Email valide |
+| `phone` | string | ❌ | Téléphone |
+| `company` | string | ❌ | Entreprise |
+| `country` | string | ❌ | Pays |
+| `city` | string | ❌ | Ville |
+| `description` | string | ✅ | Description du produit souhaité (min. 5, max. 8000 caractères) |
+| `quantity` | number | ❌ | Quantité souhaitée (défaut : `1`) |
+| `desiredDeadline` | string (ISO date) | ❌ | Date limite souhaitée |
+| `budget` | string | ❌ | Budget indicatif |
+| `referenceUrl` | string | ❌ | URL de référence |
+
+**Exemple React**
+
+```js
+const formData = new FormData();
+formData.append('data', JSON.stringify({
+  fullName: 'Jean Dupont',
+  email: 'jean@example.com',
+  description: 'Table basse en bois avec plateau en verre fumé, 120x60 cm.',
+  quantity: 2,
+  budget: '150 000 FCFA',
+}));
+if (referenceFile) formData.append('image', referenceFile);
+
+await axios.post('/product-requests', formData);
+```
+
+**Réponse `201`**
+
+```json
+{
+  "id": "665f...",
+  "message": "Your product request has been submitted. We will get back to you shortly."
+}
+```
+
+**Erreurs** : `400` Données invalides ou fichier refusé · `500` Erreur serveur
 
 ---
 
@@ -601,6 +664,196 @@ await axios.post(`/admin/quote-requests/${id}/notes`, formData);
 
 ---
 
+### Demandes de produit sur mesure (admin)
+
+#### `GET /admin/product-requests`
+
+Liste paginée des demandes de produit sur mesure, triées du plus récent au plus ancien.
+
+**Query params**
+
+| Param | Type | Défaut | Description |
+|---|---|---|---|
+| `page` | number | `1` | Numéro de page |
+| `limit` | number | `20` | Résultats par page |
+| `status` | string | — | Filtrer : `NEW` \| `IN_PROGRESS` \| `ANSWERED` \| `REJECTED` \| `CLOSED` |
+| `email` | string | — | Filtrer par email exact |
+| `q` | string | — | Recherche sur `fullName`, `email`, `company`, `description` |
+
+**Réponse `200`**
+
+```json
+{
+  "items": [ /* ProductRequest[] */ ],
+  "page": 1,
+  "limit": 20,
+  "total": 18
+}
+```
+
+---
+
+#### `GET /admin/product-requests/:id`
+
+Retourne le détail complet d'une demande de produit sur mesure.
+
+**Objet `ProductRequest`**
+
+```json
+{
+  "id": "665f...",
+  "fullName": "Jean Dupont",
+  "email": "jean@example.com",
+  "phone": "+228 90 00 00 00",
+  "company": "ACME",
+  "country": "Togo",
+  "city": "Lomé",
+  "description": "Table basse en bois avec plateau en verre fumé.",
+  "quantity": 2,
+  "desiredDeadline": "2025-06-01T00:00:00Z",
+  "budget": "150 000 FCFA",
+  "referenceUrl": "https://example.com/ref",
+  "referenceImage": {
+    "imageUrl": "https://storage.googleapis.com/...",
+    "objectName": "product-requests/665f.../ref.jpg",
+    "mimeType": "image/jpeg",
+    "sizeBytes": 102400,
+    "fileName": "ref.jpg",
+    "uploadedAt": "2025-01-01T10:00:00Z"
+  },
+  "status": "NEW",
+  "notes": [
+    {
+      "id": "665f...",
+      "authorId": "665f...",
+      "authorEmail": "admin@example.com",
+      "content": "Nous pouvons réaliser cette pièce.",
+      "createdAt": "2025-01-01T12:00:00Z",
+      "attachment": {
+        "imageUrl": "https://storage.googleapis.com/...",
+        "objectName": "product-requests/665f.../note-attachment.pdf",
+        "mimeType": "application/pdf",
+        "sizeBytes": 204800,
+        "fileName": "devis.pdf",
+        "uploadedAt": "2025-01-01T12:00:00Z"
+      }
+    }
+  ],
+  "answeredAt": null,
+  "createdAt": "2025-01-01T10:00:00Z",
+  "updatedAt": "2025-01-01T12:00:00Z"
+}
+```
+
+**Statuts possibles**
+
+| Statut | Description |
+|---|---|
+| `NEW` | Nouvelle demande, non traitée |
+| `IN_PROGRESS` | En cours de traitement |
+| `ANSWERED` | Réponse envoyée au client |
+| `REJECTED` | Demande refusée |
+| `CLOSED` | Dossier clôturé |
+
+---
+
+#### `PATCH /admin/product-requests/:id/status`
+
+Modifie le statut d'une demande. Le passage à `ANSWERED` horodate automatiquement le champ `answeredAt`.
+
+**Body (JSON)**
+
+```json
+{ "status": "IN_PROGRESS" }
+```
+
+**Réponse `200`**
+
+```json
+{ "ok": true }
+```
+
+**Erreurs** : `400` Statut non reconnu · `404` Demande introuvable
+
+---
+
+#### `POST /admin/product-requests/:id/notes`
+
+Ajoute une note admin à une demande. Si la demande est au statut `NEW`, elle passe automatiquement à `IN_PROGRESS`.  
+Requête **multipart/form-data**.
+
+**Champs multipart**
+
+| Champ | Type | Requis | Description |
+|---|---|---|---|
+| `data` | string (JSON) | ✅ | `{ "content": "Texte de la note" }` |
+| `file` | File | ❌ | Pièce jointe (image ou PDF) |
+
+**Exemple React**
+
+```js
+const formData = new FormData();
+formData.append('data', JSON.stringify({ content: 'Nous pouvons réaliser cette pièce.' }));
+if (attachmentFile) formData.append('file', attachmentFile);
+
+await axios.post(`/admin/product-requests/${id}/notes`, formData);
+```
+
+**Réponse `201`** : L'objet `Note` créé (voir structure dans `GET /admin/product-requests/:id`).
+
+---
+
+### Utilisateurs (admin)
+
+#### `POST /admin/users`
+
+Crée un nouveau compte administrateur. Réservé aux utilisateurs ayant le rôle `ADMIN`.
+
+**Body (JSON)**
+
+| Champ | Type | Requis | Description |
+|---|---|---|---|
+| `email` | string | ✅ | Email valide |
+| `password` | string | ✅ | Mot de passe (min. 8 caractères) |
+
+**Réponse `201`**
+
+```json
+{
+  "id": "665f...",
+  "email": "nouveau@example.com",
+  "role": "ADMIN",
+  "isActive": true,
+  "createdAt": "2025-01-01T10:00:00Z",
+  "updatedAt": "2025-01-01T10:00:00Z"
+}
+```
+
+**Erreurs** : `400` Données invalides · `403` Non autorisé (rôle insuffisant) · `500` Erreur serveur
+
+---
+
+#### `POST /admin/users/me/password`
+
+Permet à l'administrateur connecté de changer son propre mot de passe. Révoque tous les refresh tokens existants et efface le cookie — une reconnexion est requise.
+
+**Body (JSON)**
+
+| Champ | Type | Requis | Description |
+|---|---|---|---|
+| `currentPassword` | string | ✅ | Mot de passe actuel |
+| `newPassword` | string | ✅ | Nouveau mot de passe |
+
+**Réponse `200`**
+
+```json
+{ "ok": true }
+```
+
+**Erreurs** : `400` Données invalides · `401` Mot de passe actuel incorrect · `500` Erreur serveur
+
+---
+
 ## Codes d'erreur
 
 Format de toutes les réponses d'erreur :
@@ -625,4 +878,5 @@ Format de toutes les réponses d'erreur :
 
 ---
 
-*Généré à partir du code source — `main.go`, `controllers/`, `models/`, `dto/`*
+*Généré à partir du code source — `main.go`, `controllers/`, `models/`, `dto/`*  
+*Dernière mise à jour : ajout de `product-requests` (public + admin) et gestion des utilisateurs admin.*
