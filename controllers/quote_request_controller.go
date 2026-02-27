@@ -15,7 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// ─── CreateQuoteRequest (public — no auth) ───────────────────────────────────
+// ====== CreateQuoteRequest (public — no auth) ======================================================================
 //
 // POST /quote-requests
 // Body: application/json
@@ -138,14 +138,15 @@ func GetQuoteRequests() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()
 		col := database.OpenCollection("quote_requests")
+		maxLimit, defaultLimit := utils.GetDefaultQueryLimits()
 
 		page := utils.ParseIntDefault(c.Query("page"), 1)
-		limit := utils.ParseIntDefault(c.Query("limit"), 20)
+		limit := utils.ParseIntDefault(c.Query("limit"), defaultLimit)
 		if page < 1 {
 			page = 1
 		}
-		if limit < 1 || limit > 100 {
-			limit = 20
+		if limit < 1 || limit > maxLimit {
+			limit = defaultLimit
 		}
 		skip := int64((page - 1) * limit)
 
@@ -216,7 +217,7 @@ func GetQuoteRequest() gin.HandlerFunc {
 	}
 }
 
-// ─── UpdateQuoteStatus (admin) ────────────────────────────────────────────────
+// ====== UpdateQuoteStatus (admin) ================================================================================================
 //
 // PATCH /admin/quote-requests/:id/status
 // Body: { "status": "IN_PROGRESS" }
@@ -278,7 +279,7 @@ func UpdateQuoteStatus() gin.HandlerFunc {
 	}
 }
 
-// ─── AddAdminNote (admin) ─────────────────────────────────────────────────────
+// ====== AddAdminNote (admin) ==========================================================================================================
 //
 // POST /admin/quote-requests/:id/notes
 // Body: multipart/form-data

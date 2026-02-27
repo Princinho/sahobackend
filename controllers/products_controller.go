@@ -33,16 +33,15 @@ func GetProducts() gin.HandlerFunc {
 		ctx := c.Request.Context()
 
 		categorySlug := strings.TrimSpace(c.Query("category"))
+		maxLimit, defaultLimit := utils.GetDefaultQueryLimits()
+
 		page := utils.ParseIntDefault(c.Query("page"), 1)
-		limit := utils.ParseIntDefault(c.Query("limit"), 20)
+		limit := utils.ParseIntDefault(c.Query("limit"), defaultLimit)
 		if page < 1 {
 			page = 1
 		}
-		if limit < 1 {
-			limit = 20
-		}
-		if limit > 100 {
-			limit = 100
+		if limit < 1 || limit > maxLimit {
+			limit = defaultLimit
 		}
 		skip := int64((page - 1) * limit)
 

@@ -30,6 +30,7 @@ func main() {
 	}
 
 	r := gin.New()
+	v := utils.NewPDFOrImageValidator()
 
 	origins := os.Getenv("ALLOWED_ORIGINS")
 	log.Printf("Env config origins list: %q", origins)
@@ -70,19 +71,27 @@ func main() {
 	r.GET("/categories/:id", controllers.GetCategory())
 	r.GET("/categories/slug/:slug", controllers.GetCategory())
 	r.POST("/quote-requests", controllers.CreateQuoteRequest())
+	r.POST("/product-requests", controllers.CreateProductRequest(v))
 
 	admin := r.Group("/admin")
 	admin.Use(middleware.AuthMiddleware())
 	{
 		admin.POST("/products/add", controllers.AddProduct())
 		admin.PATCH("/products/update/:id", controllers.UpdateProduct())
+
 		admin.POST("/categories", controllers.AddCategory())
 		admin.PATCH("/categories/:id", controllers.UpdateCategory())
 		admin.DELETE("/categories/:id", controllers.DeleteCategory())
+
 		admin.GET("/quote-requests", controllers.GetQuoteRequests())
 		admin.GET("/quote-requests/:id", controllers.GetQuoteRequest())
 		admin.PATCH("/quote-requests/:id/status", controllers.UpdateQuoteStatus())
 		admin.POST("/quote-requests/:id/notes", controllers.AddQuoteNote())
+
+		admin.GET("/product-requests", controllers.GetProductRequests())
+		admin.GET("/product-requests/:id", controllers.GetProductRequest())
+		admin.PATCH("/product-requests/:id/status", controllers.UpdateProductRequestStatus())
+		admin.POST("/product-requests/:id/notes", controllers.AddProductRequestNote())
 	}
 	// Start server on port 8080 (default)
 	// Server will listen on 0.0.0.0:8080 (localhost:8080 on Windows)

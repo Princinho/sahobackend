@@ -16,27 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-// func newGCSClient(c *gin.Context) (*storage.Client, string, bool) {
-// 	GCSBucket := os.Getenv("GCS_BUCKET")
-// 	wd, err := os.Getwd()
-// 	if err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get working directory"})
-// 		return nil, "", false
-// 	}
-// 	client, err := utils.NewGCSClient(
-// 		c.Request.Context(),
-// 		filepath.Join(wd, "/gen-lang-client-0546647427-9649ea6bf52b.json"),
-// 	)
-// 	if err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create GCS client"})
-// 		return nil, "", false
-// 	}
-// 	return client, GCSBucket, true
-// }
-
-// ─── AddCategory ────────────────────────────────────────────────────────────
+// ====== AddCategory ========================================================================================================================
 //
 // Accepts a multipart/form-data request:
 //   - "data"  : JSON  { name, slug?, description?, isActive? }
@@ -117,16 +97,15 @@ func GetCategories() gin.HandlerFunc {
 		ctx := c.Request.Context()
 		col := database.OpenCollection("categories")
 
+		maxLimit, defaultLimit := utils.GetDefaultQueryLimits()
+
 		page := utils.ParseIntDefault(c.Query("page"), 1)
-		limit := utils.ParseIntDefault(c.Query("limit"), 50)
+		limit := utils.ParseIntDefault(c.Query("limit"), defaultLimit)
 		if page < 1 {
 			page = 1
 		}
-		if limit < 1 {
-			limit = 50
-		}
-		if limit > 200 {
-			limit = 200
+		if limit < 1 || limit > maxLimit {
+			limit = defaultLimit
 		}
 		skip := int64((page - 1) * limit)
 
@@ -182,7 +161,7 @@ func GetCategories() gin.HandlerFunc {
 	}
 }
 
-// ─── GetCategory ─────────────────────────────────────────────────────────────
+// ====== GetCategory ==========================================================================================================================
 // Supports lookup by :id (ObjectID hex) or :slug
 
 func GetCategory() gin.HandlerFunc {
@@ -221,7 +200,7 @@ func GetCategory() gin.HandlerFunc {
 	}
 }
 
-// ─── UpdateCategory ──────────────────────────────────────────────────────────
+// ====== UpdateCategory ====================================================================================================================
 //
 // Accepts multipart/form-data:
 //   - "data"  : JSON  { name?, slug?, description?, isActive?, removeImage? }
@@ -349,7 +328,7 @@ func UpdateCategory() gin.HandlerFunc {
 	}
 }
 
-// ─── DeleteCategory ──────────────────────────────────────────────────────────
+// ====== DeleteCategory ====================================================================================================================
 
 func DeleteCategory() gin.HandlerFunc {
 	return func(c *gin.Context) {

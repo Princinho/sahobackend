@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
+	"net/http"
 	"net/url"
 	"os"
 	"regexp"
@@ -83,11 +85,12 @@ func UploadFile(w io.Writer, bucket, object string) error {
 //	}
 func NewGCSClient(c *gin.Context) (*storage.Client, string, error) {
 	GCSBucket := os.Getenv("GCS_BUCKET")
+	credentialsPath := os.Getenv("CREDENTIALS_FILE_LOCATION")
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, "", err
 	}
-	client, err := storage.NewClient(c, option.WithAuthCredentialsFile(option.ServiceAccount, filepath.Join(wd, "/gen-lang-client-0546647427-9649ea6bf52b.json")))
+	client, err := storage.NewClient(c, option.WithAuthCredentialsFile(option.ServiceAccount, filepath.Join(wd, credentialsPath)))
 
 	if err != nil {
 		return nil, "", err
@@ -460,4 +463,159 @@ func RefreshTTL() time.Duration {
 		days = 14
 	}
 	return time.Duration(days) * 24 * time.Hour
+}
+
+func UploadProductRequestFileToGCS(
+	ctx context.Context,
+	client *storage.Client,
+	bucketName string,
+	requestID string,
+	fileHeader *multipart.FileHeader,
+) (*models.ProductRequestAttachment, error) {
+
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+
+	allowed := map[string]bool{
+		".pdf":  true,
+		".jpg":  true,
+		".jpeg": true,
+		".png":  true,
+		".webp": true,
+	}
+
+	if !allowed[ext] {
+		return nil, fmt.Errorf("file type not allowed (allowed: pdf, jpg, jpeg, png, webp)")
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	timestamp := time.Now().UTC().Unix()
+	random := uuid.New().String()
+
+	objectName := fmt.Sprintf(
+		"product-requests/%s/%d-%s%s",
+		requestID,
+		timestamp,
+		random,
+		ext,
+	)
+
+	obj := client.Bucket(bucketName).Object(objectName)
+	writer := obj.NewWriter(ctx)
+
+	ct := fileHeader.Header.Get("Content-Type")
+	if ct == "" {
+		ct = mime.TypeByExtension(ext)
+		if ct == "" {
+			ct = "application/octet-stream"
+		}
+	}
+	writer.ContentType = ct
+	writer.CacheControl = "no-cache"
+
+	if _, err := io.Copy(writer, file); err != nil {
+		_ = writer.Close()
+		return nil, err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+
+	publicURL := fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucketName, objectName)
+
+	return &models.ProductRequestAttachment{
+		ImageURL:   publicURL,
+		ObjectName: objectName,
+		MimeType:   ct,
+		SizeBytes:  fileHeader.Size,
+		FileName:   fileHeader.Filename,
+		UploadedAt: time.Now().UTC(),
+	}, nil
+}
+
+type FileValidator struct {
+	allowedExt  map[string]bool
+	allowedMime map[string]bool
+	maxSize     int64
+}
+
+func NewPDFOrImageValidator() *FileValidator {
+	allowedExt := make(map[string]bool)
+	for _, ext := range strings.Split(os.Getenv("ALLOWED_FILE_EXTENSIONS"), ",") {
+		if ext = strings.TrimSpace(strings.ToLower(ext)); ext != "" {
+			allowedExt[ext] = true
+		}
+	}
+
+	allowedMime := make(map[string]bool)
+	for _, m := range strings.Split(os.Getenv("ALLOWED_FILE_MIME_TYPES"), ",") {
+		if m = strings.TrimSpace(strings.ToLower(m)); m != "" {
+			allowedMime[m] = true
+		}
+	}
+
+	sizeMB := 5
+	if v := os.Getenv("MAX_UPLOAD_SIZE_MB"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			sizeMB = parsed
+		}
+	}
+
+	return &FileValidator{
+		allowedExt:  allowedExt,
+		allowedMime: allowedMime,
+		maxSize:     int64(sizeMB) << 20,
+	}
+}
+
+func (v *FileValidator) ValidateFile(fileHeader *multipart.FileHeader) (string, error) {
+	if fileHeader.Size > v.maxSize {
+		return "", fmt.Errorf("file too large (max %d MB)", v.maxSize>>20)
+	}
+
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	if !v.allowedExt[ext] {
+		return "", fmt.Errorf("invalid file extension")
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	buffer := make([]byte, 512)
+	if _, err = file.Read(buffer); err != nil {
+		return "", fmt.Errorf("failed to read file header")
+	}
+	if _, err = file.Seek(0, 0); err != nil {
+		return "", fmt.Errorf("failed to reset file reader")
+	}
+
+	detectedMime := strings.ToLower(http.DetectContentType(buffer))
+	if !v.allowedMime[detectedMime] {
+		return "", fmt.Errorf("invalid file type")
+	}
+
+	return detectedMime, nil
+}
+
+func GetDefaultQueryLimits() (int, int) {
+	maxLimitStr := os.Getenv("QUERY_MAX_LIMIT")
+	defaultLimitStr := os.Getenv("QUERY_MAX_LIMIT")
+	maxLimit, err := strconv.Atoi(maxLimitStr)
+	if err != nil {
+		// handle error or fall back to a default
+		maxLimit = 100
+	}
+	defaultLimit, err := strconv.Atoi(defaultLimitStr)
+	if err != nil {
+		// handle error or fall back to a default
+		defaultLimit = 20
+	}
+	return maxLimit, defaultLimit
 }
