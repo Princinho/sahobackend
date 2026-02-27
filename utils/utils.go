@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"mime"
 	"net/http"
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -568,18 +570,18 @@ func NewPDFOrImageValidator() *FileValidator {
 	return &FileValidator{
 		allowedExt:  allowedExt,
 		allowedMime: allowedMime,
-		maxSize:     int64(sizeMB) << 20,
+		maxSize:     int64(sizeMB) * 1024 * 1024,
 	}
 }
 
 func (v *FileValidator) ValidateFile(fileHeader *multipart.FileHeader) (string, error) {
 	if fileHeader.Size > v.maxSize {
-		return "", fmt.Errorf("file too large (max %d MB)", v.maxSize>>20)
+		return "", fmt.Errorf("file too large (max %d MB)", v.maxSize/(1024*1024))
 	}
 
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
 	if !v.allowedExt[ext] {
-		return "", fmt.Errorf("invalid file extension")
+		return "", fmt.Errorf("invalid file extension: %s. Allowed: %s", ext, strings.Join(slices.Collect(maps.Keys(v.allowedExt)), ", "))
 	}
 
 	file, err := fileHeader.Open()

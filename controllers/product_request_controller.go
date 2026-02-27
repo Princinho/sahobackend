@@ -78,6 +78,7 @@ func CreateProductRequest(ImageOrPdfValidator *utils.FileValidator) gin.HandlerF
 		if errFile == nil && file != nil {
 			if _, err := ImageOrPdfValidator.ValidateFile(file); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
 			}
 			gcsClient, bucket, err := utils.NewGCSClient(c)
 			if err != nil {
