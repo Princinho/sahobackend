@@ -56,7 +56,7 @@ func Login() gin.HandlerFunc {
 			return
 		}
 		http.SetCookie(c.Writer, &http.Cookie{
-			Name:     "refresh_token",
+			Name:     "refreshToken",
 			Value:    refreshToken,
 			Path:     "/auth/refresh",
 			MaxAge:   int((7 * 24 * time.Hour).Seconds()),

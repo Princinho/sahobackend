@@ -92,6 +92,8 @@ func main() {
 		admin.GET("/product-requests/:id", controllers.GetProductRequest())
 		admin.PATCH("/product-requests/:id/status", controllers.UpdateProductRequestStatus())
 		admin.POST("/product-requests/:id/notes", controllers.AddProductRequestNote())
+		admin.POST("/users", controllers.CreateUser())
+		admin.POST("/users/me/password", controllers.ChangeMyPassword())
 	}
 	// Start server on port 8080 (default)
 	// Server will listen on 0.0.0.0:8080 (localhost:8080 on Windows)
