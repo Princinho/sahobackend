@@ -581,6 +581,7 @@ func (v *FileValidator) ValidateFile(fileHeader *multipart.FileHeader) (string, 
 
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
 	if !v.allowedExt[ext] {
+		log.Printf("invalid file extension: %s. Allowed: %s", ext, strings.Join(slices.Collect(maps.Keys(v.allowedExt)), ", "))
 		return "", fmt.Errorf("invalid file extension: %s. Allowed: %s", ext, strings.Join(slices.Collect(maps.Keys(v.allowedExt)), ", "))
 	}
 
