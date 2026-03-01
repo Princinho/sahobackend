@@ -3,11 +3,11 @@ package models
 import "go.mongodb.org/mongo-driver/v2/bson"
 
 type Product struct {
-	Id                 bson.ObjectID   `bson:"_id" json:"id"`
+	Id                 bson.ObjectID   `bson:"_id,omitempty" json:"id"`
 	Name               string          `json:"name"`
 	Price              float64         `json:"price"`
 	Quantity           int             `json:"quantity"`
-	Slug               string          `json:"slug"`
+	Slug               string          `bson:"slug,omitempty" json:"slug"`
 	CategoryIds        []bson.ObjectID `json:"categoryIds"`
 	ImageUrls          []string        `json:"imageUrls"`
 	IsTrending         bool            `json:"isTrending"`
