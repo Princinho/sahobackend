@@ -326,6 +326,9 @@ func UpdateProduct() gin.HandlerFunc {
 		if dto.IsDisabled != nil {
 			set["isDisabled"] = *dto.IsDisabled
 		}
+		if dto.CategoryIds != nil {
+			set["categoryIds"] = *dto.CategoryIds
+		}
 
 		mergedImageUrls := utils.MergeImageUrlsArrays(product.ImageUrls, imagesToDelete, imageUrls)
 		if len(imagesToDelete) > 0 || len(imageUrls) > 0 {
