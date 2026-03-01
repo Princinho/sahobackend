@@ -80,7 +80,7 @@ func AddCategory() gin.HandlerFunc {
 		res, err := col.InsertOne(ctx, doc)
 		if err != nil {
 			if utils.IsDuplicateKey(err) {
-				c.JSON(http.StatusConflict, gin.H{"error": "slug already exists", "field": "slug"})
+				c.JSON(http.StatusConflict, gin.H{"error": "slug already exists: '" + doc.Slug + "'", "field": "slug"})
 				return
 			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -305,7 +305,8 @@ func UpdateCategory() gin.HandlerFunc {
 				}
 			}
 			if utils.IsDuplicateKey(err) {
-				c.JSON(http.StatusConflict, gin.H{"error": "slug already exists", "field": "slug"})
+				c.JSON(http.StatusConflict, gin.H{
+					"error": "slug already exists: '" + *body.Slug + "'", "field": "slug"})
 				return
 			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

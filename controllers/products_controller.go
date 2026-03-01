@@ -201,7 +201,7 @@ func AddProduct() gin.HandlerFunc {
 		if err != nil {
 			if utils.IsDuplicateKey(err) {
 				c.JSON(409, gin.H{
-					"error": "slug already exists",
+					"error": "slug already exists: '" + dto.Slug + "'",
 					"field": "slug",
 				})
 				return
