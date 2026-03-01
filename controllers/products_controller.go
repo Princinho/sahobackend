@@ -67,7 +67,6 @@ func GetProducts() gin.HandlerFunc {
 		// Build filter
 		filter := bson.M{}
 
-		// If category slug is provided: resolve it -> ObjectID, then filter products by it
 		if categorySlug != "" {
 			var cat models.Category
 			if err := categoriesCol.FindOne(ctx, bson.M{"slug": categorySlug}).Decode(&cat); err != nil {
@@ -81,13 +80,11 @@ func GetProducts() gin.HandlerFunc {
 				return
 			}
 
-			// Products where categoryIds array contains cat.ID
 			filter["categoryIds"] = bson.M{"$in": bson.A{cat.Id}}
 		}
 		if b, err := utils.ParseBoolQuery(c.Query("isTrending")); err == nil && b != nil {
 			filter["isTrending"] = *b
 		}
-		filter["isDisabled"] = false
 		if b, err := utils.ParseBoolQuery(c.Query("isDisabled")); err == nil && b != nil {
 			filter["isDisabled"] = *b
 		}
